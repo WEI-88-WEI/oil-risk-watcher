@@ -1,0 +1,34 @@
+{
+  "symbols": {
+    "BZ=F": {
+      "label": "BRENTOIL",
+      "liquidationPrice": 125,
+      "direction": "up"
+    },
+    "CL=F": {
+      "label": "CL",
+      "liquidationPrice": 75,
+      "direction": "down"
+    }
+  },
+  "thresholds": {
+    "warnDistance": 5,
+    "dangerDistance": 3
+  },
+  "timing": {
+    "normalPollMs": 60000,
+    "dangerPollMs": 10000,
+    "warnCooldownMs": 120000,
+    "dangerRepeatMs": 10000,
+    "fetchTimeoutMs": 10000
+  },
+  "notify": {
+    "channel": "telegram",
+    "target": "6894522404",
+    "account": "default",
+    "silent": false,
+    "prefix": "🚨 Oil Risk Watcher"
+  },
+  "stateFile": "./state.json",
+  "logFile": "./watcher.log"
+}

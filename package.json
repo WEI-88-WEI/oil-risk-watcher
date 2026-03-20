@@ -1,0 +1,12 @@
+{
+  "name": "oil-risk-watcher",
+  "version": "1.0.0",
+  "private": true,
+  "description": "24/7 Yahoo Finance oil liquidation risk watcher with Telegram alerts via OpenClaw",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "test:fetch": "node src/index.js --once --stdout",
+    "test:alert": "node src/index.js --test-alert"
+  }
+}

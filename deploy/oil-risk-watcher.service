@@ -1,0 +1,16 @@
+[Unit]
+Description=Oil Risk Watcher
+After=network-online.target openclaw-gateway.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/.openclaw/workspace/oil-risk-watcher
+ExecStart=/usr/bin/env npm start
+Restart=always
+RestartSec=5
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target
