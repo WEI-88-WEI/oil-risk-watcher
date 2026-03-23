@@ -1,24 +1,243 @@
 # Oil Risk Watcher
 
-24/7 server-side monitor for Yahoo Finance crude oil futures alerts.
+一个运行在服务器上的 7×24 原油风险价格监控脚本。
 
-## Current rules
+当前版本使用 **Hyperliquid `xyz` 市场数据** 作为数据源，监控以下两个品种：
 
-- `BZ=F` (BRENTOIL): alert when price rises to within 5 of liquidation, danger within 3
-- `CL=F` (CL): alert when price falls to within 5 of liquidation, danger within 3
-- Normal polling: every 60s
-- Danger polling + reminders: every 10s
-- Warn cooldown: 2 minutes
-- No clear/exit notifications
+- `xyz:BRENTOIL`
+- `xyz:CL`
 
-## Commands
+当价格接近预设爆仓价时，脚本会通过 Telegram 机器人发出提醒。
+
+---
+
+## 一、项目用途
+
+这个项目用于盯盘两类原油相关品种，并在价格接近爆仓价时自动提醒。
+
+目前的方向规则为：
+
+- **BRENTOIL**：上涨接近爆仓价时触发提醒
+- **CL**：下跌接近爆仓价时触发提醒
+
+适合运行在一台常在线服务器上，不依赖本地电脑开机。
+
+---
+
+## 二、当前数据源
+
+当前数据源为：
+
+- **Hyperliquid Info API**
+- 接口地址：`https://api.hyperliquid.xyz/info`
+- 使用的 dex：`xyz`
+
+当前取价方式：
+
+- `{"type":"meta","dex":"xyz"}`：获取 `xyz` 市场 universe
+- `{"type":"allMids","dex":"xyz"}`：获取全部中间价
+
+当前使用的市场 symbol：
+
+- `xyz:BRENTOIL`
+- `xyz:CL`
+
+---
+
+## 三、当前监控规则
+
+### 1. BRENTOIL
+
+- symbol：`xyz:BRENTOIL`
+- 爆仓价：`129`
+- 方向：**上涨逼近**
+
+触发规则：
+
+- 当 `当前价 >= 爆仓价 - 5` 时，进入**一级预警**
+- 当 `当前价 >= 爆仓价 - 3` 时，进入**三级危险**
+
+### 2. CL
+
+- symbol：`xyz:CL`
+- 爆仓价：`78`
+- 方向：**下跌逼近**
+
+触发规则：
+
+- 当 `当前价 <= 爆仓价 + 5` 时，进入**一级预警**
+- 当 `当前价 <= 爆仓价 + 3` 时，进入**三级危险**
+
+---
+
+## 四、提醒策略
+
+### 一级预警
+
+- 首次进入预警区时提醒一次
+- 冷却时间：`2 分钟`
+
+### 三级危险
+
+- 首次进入危险区立即提醒
+- 危险持续期间：**每 10 秒提醒一次**
+
+### 其他说明
+
+- 正常轮询频率：`60 秒`
+- 进入三级危险后轮询频率：`10 秒`
+- **不发送解除提醒**
+
+---
+
+## 五、通知方式
+
+当前通知方式：
+
+- Telegram Bot 直发
+
+脚本会通过配置里的 `telegramBotToken` 直接发送消息到指定 `chat_id`。
+
+提醒内容包含：
+
+- 品种名称
+- 当前价格
+- 爆仓价
+- 距离爆仓多少
+- 风险等级
+- 发送时间
+
+---
+
+## 六、配置文件
+
+主配置文件：
+
+- `config.json`
+
+当前配置项包括：
+
+- 数据源配置
+- symbol 与爆仓价
+- 预警阈值
+- 轮询与冷却时间
+- Telegram 通知参数
+- 状态文件路径
+- 日志文件路径
+
+示例：
+
+```json
+{
+  "dataSource": {
+    "provider": "hyperliquid",
+    "endpoint": "https://api.hyperliquid.xyz/info",
+    "dex": "xyz"
+  }
+}
+```
+
+---
+
+## 七、常用命令
+
+在项目目录下执行：
 
 ```bash
 npm start
+```
+
+启动常驻监控。
+
+```bash
 npm run test:fetch
+```
+
+执行单次抓价与判断，并输出结果。
+
+```bash
 npm run test:alert
 ```
 
-## Deployment
+发送一条测试提醒，验证 Telegram 通道是否正常。
 
-The repository includes a systemd unit at `oil-risk-watcher/deploy/oil-risk-watcher.service`.
+---
+
+## 八、运行逻辑说明
+
+脚本核心流程如下：
+
+1. 读取 `config.json`
+2. 从 Hyperliquid `xyz` 市场拉取 `meta` 与 `allMids`
+3. 获取 `xyz:BRENTOIL` 和 `xyz:CL` 的当前价格
+4. 根据方向和爆仓价判断当前处于：
+   - 安全区
+   - 一级预警
+   - 三级危险
+5. 根据冷却时间与危险级别决定是否发送提醒
+6. 把状态写入本地 `state.json`
+7. 把运行日志写入 `watcher.log`
+
+---
+
+## 九、项目文件说明
+
+主要文件：
+
+- `src/index.js`：主程序入口
+- `config.json`：监控配置
+- `state.json`：运行状态缓存
+- `watcher.log`：运行日志
+- `deploy/oil-risk-watcher.service`：systemd service 示例
+- `.gitignore`：忽略状态文件与日志
+
+---
+
+## 十、部署建议
+
+推荐部署在：
+
+- VPS
+- 云服务器
+- 常开 Linux 主机
+
+建议使用：
+
+- `systemd`
+- 或其他进程守护方案
+
+目标是保证：
+
+- 服务异常退出后自动拉起
+- 机器重启后自动恢复监控
+
+---
+
+## 十一、注意事项
+
+1. 当前项目的核心目标是**价格接近爆仓价时的提醒**，不是高频交易。
+2. 如果提醒强度还不够，可以继续增加更强的通知通道。
+3. 三级危险比一级预警更重要，系统优先保证三级提醒尽量不漏。
+4. 修改爆仓价后，下一轮监控会自动按新配置生效。
+
+---
+
+## 十二、后续可改进方向
+
+可以继续增强的点包括：
+
+- 开机自启与守护进程彻底收尾
+- 更方便的价格修改入口
+- 多通道提醒（例如多个 bot / 多个平台）
+- 更清晰的状态查询命令
+- 更细粒度的日志与错误告警
+
+---
+
+## 十三、仓库说明
+
+本项目仓库：
+
+- GitHub：<https://github.com/WEI-88-WEI/oil-risk-watcher>
+
+如果后续继续改监控逻辑，建议改完后及时提交并推送，保持线上配置和仓库一致。
