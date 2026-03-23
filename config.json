@@ -1,13 +1,18 @@
 {
+  "dataSource": {
+    "provider": "hyperliquid",
+    "endpoint": "https://api.hyperliquid.xyz/info",
+    "dex": "xyz"
+  },
   "symbols": {
-    "BZ=F": {
+    "xyz:BRENTOIL": {
       "label": "BRENTOIL",
-      "liquidationPrice": 125,
+      "liquidationPrice": 110,
       "direction": "up"
     },
-    "CL=F": {
+    "xyz:CL": {
       "label": "CL",
-      "liquidationPrice": 75,
+      "liquidationPrice": 78,
       "direction": "down"
     }
   },
@@ -27,7 +32,8 @@
     "target": "6894522404",
     "account": "default",
     "silent": false,
-    "prefix": "🚨 Oil Risk Watcher"
+    "prefix": "🚨 Oil Risk Watcher",
+    "telegramBotToken": "8743729308:AAFK8Jl5CBPAJs-CH5nkKWX5O9N7pkXhS9k"
   },
   "stateFile": "./state.json",
   "logFile": "./watcher.log"

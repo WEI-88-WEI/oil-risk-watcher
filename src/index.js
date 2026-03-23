@@ -36,39 +36,58 @@ function loadConfig() {
   if (!config) throw new Error(`Missing config: ${configPath}`);
   config.stateFile = path.resolve(rootDir, config.stateFile);
   config.logFile = path.resolve(rootDir, config.logFile);
+  config.dataSource ??= { provider: 'hyperliquid', endpoint: 'https://api.hyperliquid.xyz/info', dex: 'xyz' };
   return config;
 }
 
-async function fetchQuotes(symbols, timeoutMs) {
+async function fetchQuotesHyperliquid(config, symbols, timeoutMs) {
+  const endpoint = config.dataSource?.endpoint || 'https://api.hyperliquid.xyz/info';
+  const dex = config.dataSource?.dex || 'xyz';
+  const py = [
+    'import json, sys, urllib.request',
+    'endpoint = sys.argv[1]',
+    'symbols = json.loads(sys.argv[2])',
+    'timeout = float(sys.argv[3]) / 1000.0',
+    'dex = sys.argv[4]',
+    'headers = {"Content-Type": "application/json", "User-Agent": "Mozilla/5.0 OilRiskWatcher/1.0"}',
+    'def post(payload):',
+    '    req = urllib.request.Request(endpoint, data=json.dumps(payload).encode(), headers=headers)',
+    '    with urllib.request.urlopen(req, timeout=timeout) as r:',
+    '        return json.load(r)',
+    'meta = post({"type": "meta", "dex": dex})',
+    'mids = post({"type": "allMids", "dex": dex})',
+    'valid = {item["name"] for item in meta["universe"]}',
+    'out = {}',
+    'for symbol in symbols:',
+    '    if symbol in valid and symbol in mids:',
+    '        out[symbol] = {"symbol": symbol, "price": float(mids[symbol]), "currency": "USD", "marketTime": None}',
+    'print(json.dumps(out))'
+  ].join('\n');
+
+  const { stdout } = await execFileAsync('python3', ['-c', py, endpoint, JSON.stringify(symbols), String(timeoutMs), String(dex)], {
+    cwd: rootDir,
+    timeout: Math.max(30000, timeoutMs * 3),
+    maxBuffer: 1024 * 1024
+  });
+  const raw = JSON.parse(stdout || '{}');
   const map = new Map();
-
-  for (const symbol of symbols) {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1m&range=1d`;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-      const res = await fetch(url, {
-        headers: { 'User-Agent': 'Mozilla/5.0 OilRiskWatcher/1.0' },
-        signal: controller.signal
-      });
-      if (!res.ok) throw new Error(`Yahoo HTTP ${res.status} for ${symbol}`);
-      const data = await res.json();
-      const meta = data?.chart?.result?.[0]?.meta;
-      const price = meta?.regularMarketPrice;
-      if (typeof price === 'number') {
-        map.set(symbol, {
-          symbol,
-          price,
-          currency: meta?.currency ?? null,
-          marketTime: meta?.regularMarketTime ? new Date(meta.regularMarketTime * 1000).toISOString() : null
-        });
-      }
-    } finally {
-      clearTimeout(timeout);
-    }
+  for (const [symbol, item] of Object.entries(raw)) {
+    map.set(symbol, {
+      symbol,
+      price: item.price,
+      currency: item.currency ?? null,
+      marketTime: item.marketTime ?? null
+    });
   }
-
   return map;
+}
+
+async function fetchQuotes(config, symbols, timeoutMs) {
+  const provider = config.dataSource?.provider || 'hyperliquid';
+  if (provider === 'hyperliquid') {
+    return fetchQuotesHyperliquid(config, symbols, timeoutMs);
+  }
+  throw new Error(`Unsupported data source provider: ${provider}`);
 }
 
 function initState(config) {
@@ -101,10 +120,33 @@ function buildMessage({ prefix, level, label, symbol, price, liquidationPrice, d
   const icon = level === 'danger3' ? '🛑' : '⚠️';
   const directionText = direction === 'up' ? '上涨逼近' : '下跌逼近';
   const repeatText = repeated ? '\n- 持续提醒：是' : '';
-  return `${prefix}\n${icon} ${status} · ${label} (${symbol})\n- 当前价：${formatNumber(price)}\n- 爆仓价：${formatNumber(liquidationPrice)}\n- 距离爆仓：${formatNumber(distance)}\n- 方向：${directionText}${repeatText}\n- 行情时间：${marketTime ?? 'unknown'}\n- 发送时间：${nowIso()}`;
+  return `${prefix}\n${icon} ${status} · ${label} (${symbol})\n- 当前价：${formatNumber(price)}\n- 爆仓价：${formatNumber(liquidationPrice)}\n- 距离爆仓：${formatNumber(distance)}\n- 方向：${directionText}${repeatText}\n- 行情时间：${marketTime ?? 'hyperliquid realtime'}\n- 发送时间：${nowIso()}`;
+}
+
+async function sendTelegramDirect(botToken, target, message, silent = false) {
+  const py = [
+    'import json, sys, urllib.request',
+    'token=sys.argv[1]',
+    'target=sys.argv[2]',
+    'message=sys.argv[3]',
+    'silent=sys.argv[4].lower()=="true"',
+    'url=f"https://api.telegram.org/bot{token}/sendMessage"',
+    'payload=json.dumps({"chat_id": target, "text": message, "disable_notification": silent}).encode()',
+    'req=urllib.request.Request(url, data=payload, headers={"Content-Type":"application/json"})',
+    'with urllib.request.urlopen(req, timeout=20) as r:\n    data=json.load(r)\n    print(json.dumps(data))\n    if not data.get("ok"):\n        raise SystemExit(1)'
+  ].join('\n');
+  const { stdout } = await execFileAsync('python3', ['-c', py, botToken, String(target), message, String(!!silent)], {
+    cwd: rootDir,
+    timeout: 30000,
+    maxBuffer: 1024 * 1024
+  });
+  return JSON.parse(stdout || '{}');
 }
 
 async function sendMessage(config, message) {
+  if (config.notify.channel === 'telegram' && config.notify.telegramBotToken) {
+    return sendTelegramDirect(config.notify.telegramBotToken, config.notify.target, message, config.notify.silent);
+  }
   const args = ['message', 'send', '--channel', config.notify.channel, '--target', config.notify.target, '--message', message];
   if (config.notify.account) args.push('--account', config.notify.account);
   if (config.notify.silent) args.push('--silent');
@@ -128,7 +170,7 @@ async function runOnce({ stdout = false, forceTestAlert = false } = {}) {
   }
 
   const symbols = Object.keys(config.symbols);
-  const quotes = await fetchQuotes(symbols, config.timing.fetchTimeoutMs);
+  const quotes = await fetchQuotes(config, symbols, config.timing.fetchTimeoutMs);
   const summary = [];
   let anyDanger = false;
 
