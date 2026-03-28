@@ -7,12 +7,12 @@
   "symbols": {
     "xyz:BRENTOIL": {
       "label": "BRENTOIL",
-      "liquidationPrice": 129,
+      "liquidationPrice": 125,
       "direction": "up"
     },
     "xyz:CL": {
       "label": "CL",
-      "liquidationPrice": 78,
+      "liquidationPrice": 85,
       "direction": "down"
     }
   },
