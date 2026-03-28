@@ -188,7 +188,7 @@ npm run test:alert
 - `config.json`：监控配置
 - `data/state.json`：运行状态缓存
 - `data/watcher.log`：运行日志
-- `deploy/oil-risk-watcher.service`：systemd service 示例
+- `deploy/oil-risk-watcher.service`：systemd service 示例（已使用绝对 node 路径，适配 nvm 环境）
 - `.gitignore`：忽略状态文件与日志
 
 ---
