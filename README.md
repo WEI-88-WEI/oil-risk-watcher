@@ -175,8 +175,8 @@ npm run test:alert
    - 一级预警
    - 三级危险
 5. 根据冷却时间与危险级别决定是否发送提醒
-6. 把状态写入本地 `state.json`
-7. 把运行日志写入 `watcher.log`
+6. 把状态写入本地 `data/state.json`
+7. 把运行日志写入 `data/watcher.log`
 
 ---
 
@@ -186,8 +186,8 @@ npm run test:alert
 
 - `src/index.js`：主程序入口
 - `config.json`：监控配置
-- `state.json`：运行状态缓存
-- `watcher.log`：运行日志
+- `data/state.json`：运行状态缓存
+- `data/watcher.log`：运行日志
 - `deploy/oil-risk-watcher.service`：systemd service 示例
 - `.gitignore`：忽略状态文件与日志
 

@@ -35,6 +35,6 @@
     "prefix": "🚨 Oil Risk Watcher",
     "telegramBotToken": "8743729308:AAFK8Jl5CBPAJs-CH5nkKWX5O9N7pkXhS9k"
   },
-  "stateFile": "./state.json",
-  "logFile": "./watcher.log"
+  "stateFile": "./data/state.json",
+  "logFile": "./data/watcher.log"
 }
